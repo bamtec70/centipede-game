@@ -14,16 +14,16 @@ const img = octx.createImageData(W, H), fb = new Uint32Array(img.data.buffer);
 const rgb = h => { const n = parseInt(h.slice(1), 16); return 0xff000000 | ((n & 255) << 16) | (n & 0xff00) | (n >> 16); };
 // each wave: mushroom cap, mushroom outline, centipede body, centipede legs/eyes, poisoned cap
 // m = mushroom cap, o = mushroom outline + text, c = centipede, l = legs, e = eyes, p = poisoned cap, pl = player, sp = spider
-// waves 1-2 measured from the MAME reference; later waves follow the same scheme (cap/outline rotate each wave)
+// waves 1-8 measured from the MAME reference (centipede = cap colour, text = outline colour)
 const PAL = [
- { m: "#00ff00", o: "#ff0000", c: "#00ff00", l: "#ffff80", e: "#ff0000", p: "#ffff80", pl: "#ffff80", sp: "#ffff80" },
- { m: "#00ffbf", o: "#ff00bf", c: "#ff00bf", l: "#00ffff", e: "#ff8000", p: "#ff8000", pl: "#ff8000", sp: "#ffff00" },
- { m: "#ff0000", o: "#0060ff", c: "#ffff00", l: "#ff00ff", e: "#0060ff", p: "#00ff00", pl: "#ffffff", sp: "#00ff00" },
- { m: "#ffff00", o: "#00a0ff", c: "#00ffff", l: "#ff8000", e: "#ff0000", p: "#ff00bf", pl: "#ff0000", sp: "#ff00bf" },
- { m: "#ff8000", o: "#00ff00", c: "#ff00ff", l: "#ffffff", e: "#00ff00", p: "#00ffff", pl: "#00ffff", sp: "#ffff00" },
- { m: "#ff00ff", o: "#ffff00", c: "#0060ff", l: "#00ff00", e: "#ffff00", p: "#ff0000", pl: "#00ff00", sp: "#ffffff" },
- { m: "#0060ff", o: "#ff8000", c: "#ff0000", l: "#ffff80", e: "#ffffff", p: "#ffff00", pl: "#ffff00", sp: "#00ffff" },
- { m: "#ffffff", o: "#ff00bf", c: "#00ff00", l: "#ff8000", e: "#ff00bf", p: "#00ffbf", pl: "#ff00ff", sp: "#ff8000" }];
+ { m: "#00ff00", o: "#ff0000", c: "#00ff00", l: "#ffffc0", e: "#ff0000", p: "#ffffc0", pl: "#ffffc0", sp: "#ffffc0" },
+ { m: "#ff00c0", o: "#00ffc0", c: "#ff00c0", l: "#ffc000", e: "#00ffc0", p: "#ffc000", pl: "#ffc000", sp: "#ffc000" },
+ { m: "#ff0000", o: "#ffff00", c: "#ff0000", l: "#00ffc0", e: "#ffff00", p: "#00ffc0", pl: "#00ffc0", sp: "#00ffc0" },
+ { m: "#ffc000", o: "#0000ff", c: "#ffc000", l: "#00ffc0", e: "#0000ff", p: "#00ffc0", pl: "#00ffc0", sp: "#00ffc0" },
+ { m: "#00ffc0", o: "#ff00ff", c: "#00ffc0", l: "#ffff00", e: "#ff00ff", p: "#ffff00", pl: "#ffff00", sp: "#ffff00" },
+ { m: "#00ffff", o: "#ffc000", c: "#00ffff", l: "#0000ff", e: "#ffc000", p: "#0000ff", pl: "#0000ff", sp: "#0000ff" },
+ { m: "#ffff00", o: "#ff00ff", c: "#ffff00", l: "#00ff00", e: "#ff00ff", p: "#00ff00", pl: "#00ff00", sp: "#00ff00" },
+ { m: "#00ffff", o: "#ff0000", c: "#00ffff", l: "#ffff00", e: "#ff0000", p: "#ffff00", pl: "#ffff00", sp: "#ffff00" }];
 let pal;
 function setPal(w) { const p = PAL[(w - 1) % PAL.length]; pal = {}; for (const k in p) pal[k] = rgb(p[k]); pal.w = rgb("#ffffff"); pal.txt = pal.o; }
 setPal(1);
@@ -116,7 +116,7 @@ function seedMushrooms() {
  for (let r = 1; r < FIELD_BOTTOM; r++) for (let c = 0; c < COLS; c++) if (Math.random() < (r >= ZONE_TOP ? 0.015 : r < 2 ? 0 : 0.065)) mush[MI(c, r)] = 4;
 }
 function newCentipede() {
- segs = []; const extra = (wave - 1) % 12, len = 12 - extra, spd = wave % 2 ? 2 : 1; // measured: wave 1 = 2 px/frame, wave 2 = 1 px/frame
+ segs = []; const extra = (wave - 1) % 12, len = 12 - extra, spd = [2, 1, 2, 1, 1, 1, 1, 2][(wave - 1) % 8]; // measured per wave from MAME footage
  const dir = Math.random() < 0.5 ? 1 : -1, sc = dir > 0 ? 14 : 15;
  for (let i = 0; i < len; i++) segs.push(mkSeg(sc - dir * i, 1, dir, spd, i === 0));
  for (let i = 0; i < extra; i++) { const d = i & 1 ? 1 : -1; segs.push(mkSeg(2 + Math.floor(Math.random() * 26), 1, d, spd, true)); segs[segs.length - 1].y -= 0; }
@@ -244,10 +244,10 @@ function chooseNext(s) {
  } else s.tx = s.x + s.dx * 8;
 }
 function spiderUpdate() {
- if (!spider) { if (--spiderT <= 0) { const l = Math.random() < 0.5; spider = { x: l ? -16 : W, y: 23 * T + Math.random() * 40, dx: l ? 1 : -1, vy: 1, mode: 0, mt: 0, spd: wave > 1 ? 2 : 1 }; } return; }
+ if (!spider) { if (--spiderT <= 0) { const l = Math.random() < 0.5; spider = { x: l ? -16 : W, y: 23 * T + Math.random() * 40, dx: l ? 1 : -1, vy: 1, mode: 0, mt: 0, spd: wave > 2 ? 2 : 1 }; } return; }
  const sp = spider; if (frame % 30 === 0) SFX.spider();
  if (--sp.mt <= 0) { sp.mode = Math.random() < 0.35 ? 1 : 0; sp.mt = 20 + Math.random() * 40; } // mode1 = vertical only
- if (frame % 2 === 0 || sp.spd > 1) { if (!sp.mode) sp.x += sp.dx; sp.y += sp.vy * 1.5; }
+ if (!sp.mode) sp.x += sp.dx * sp.spd; sp.y += sp.vy * sp.spd; // measured: 1 px/frame waves 1-2, 2 px/frame after
  if (sp.y > FIELD_BOTTOM * T) sp.vy = -1; if (sp.y < 23 * T) sp.vy = 1;
  // eats mushrooms
  const c = (sp.x + 8) >> 3, r = (sp.y + 4) >> 3; if (c >= 0 && c < COLS && r >= ZONE_TOP - 2 && r < ROWS && mush[MI(c, r)] && Math.random() < 0.1) mush[MI(c, r)] = 0;
@@ -256,7 +256,7 @@ function spiderUpdate() {
 function fleaUpdate() {
  if (!flea) {
   if (wave < 2) return; let n = 0; for (let r = ZONE_TOP; r <= FIELD_BOTTOM; r++) for (let c = 0; c < COLS; c++) if (mush[MI(c, r)]) n++;
-  if (n < Math.min(9, 5 + Math.floor((wave - 2) / 2)) && Math.random() < 0.01) flea = { x: (Math.random() * COLS | 0) * 8, y: 8, spd: 2, hits: 0 };
+  if (n < Math.min(9, 5 + Math.floor((wave - 2) / 2)) && Math.random() < 0.01) flea = { x: (Math.random() * COLS | 0) * 8, y: 8, spd: 3, hits: 0 };
   return;
  }
  flea.y += flea.spd; SFX.fleaTone(1400 - flea.y * 4);
@@ -344,12 +344,12 @@ function render() {
    if ((frame >> 5) & 1) ctext(document.body.classList.contains("touch") ? "TAP TO PLAY" : "CLICK OR SPACE TO PLAY", 16, pal.w);
    ctext("CENTIPEDE  ARCADE REMAKE", 31, pal.txt);
   }
-  if (state === "over") ctext("GAME OVER", 15, pal.w);
+  if (state === "over") ctext("GAME OVER", 16, pal.txt);
   if (state === "entry") {
-   ctext("GREAT SCORE", 12, pal.w); ctext("ENTER YOUR INITIALS", 14, pal.txt);
-   const nm = entry.ch.map(i => ALPHA[i]).join(""); text(nm, 108, 17 * 8, pal.w);
-   if ((frame >> 3) & 1 && entry.pos < 3) rect(108 + entry.pos * 8 + 1, 17 * 8 + 8, 6, 1, pal.w);
-   ctext("MOVE TO PICK  FIRE TO ENTER", 20, pal.txt);
+   ctext("GAME OVER", 16, pal.txt); ctext("GREAT SCORE", 19, pal.txt); ctext("ENTER YOUR INITIALS", 20, pal.txt);
+   const nm = entry.ch.map(i => ALPHA[i]).join(""); text(nm, 96, 22 * 8, pal.txt); // layout from MAME initials screen
+   if ((frame >> 3) & 1 && entry.pos < 3) rect(96 + entry.pos * 8 + 1, 22 * 8 + 8, 6, 1, pal.txt);
+   ctext("MOVE TO PICK  FIRE TO ENTER", 25, pal.txt);
   }
  }
  octx.putImageData(img, 0, 0);
