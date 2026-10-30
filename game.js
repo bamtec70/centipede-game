@@ -56,12 +56,14 @@ const ctext = (s, row, c) => text(s, ((COLS - String(s).length) >> 1) * 8, row *
 
 /* ---------- audio (POKEY-style squares + poly noise) ---------- */
 let AC = null, master = null;
-localStorage.removeItem("cent_muted"); // clear any stale flag from older builds
-let muted = localStorage.getItem("cent_muted_v2") === "1";
+try { ["cent_muted", "cent_muted_v2", "cent_muted_v1", "muted"].forEach(k => localStorage.removeItem(k)); } catch (_) {}
+let muted = false; // session-only; never persisted
+let unlocked = false, oscStarts = 0;
 function audio() {
- if (!AC) { const A = window.AudioContext || window.webkitAudioContext; if (!A) return null; AC = new A(); master = AC.createGain(); master.connect(AC.destination); }
+ if (!AC) { const A = window.AudioContext || window.webkitAudioContext; if (!A) return null; AC = new A(); master = AC.createGain(); master.gain.value = 0.35; master.connect(AC.destination); AC.onstatechange = () => { if (AC.state === "suspended" || AC.state === "interrupted") { try { const p = AC.resume(); if (p && p.catch) p.catch(() => {}); } catch (_) {} } }; }
  master.gain.value = muted ? 0 : 0.35;
- if (AC.state !== "running" && AC.resume) AC.resume().catch(() => {});
+ if (AC.state !== "running" && AC.resume) { try { const p = AC.resume(); if (p && p.catch) p.catch(() => {}); } catch (_) {} }
+ if (!unlocked) { try { const b = AC.createBuffer(1, 1, 22050), src = AC.createBufferSource(); src.buffer = b; src.connect(AC.destination); src.start(0); unlocked = true; } catch (_) {} }
  return AC;
 }
 let noiseBuf = null;
@@ -73,7 +75,7 @@ function sq(f0, f1, dur, vol, when) {
  if (quiet()) return; const t = AC.currentTime + (when || 0), o = AC.createOscillator(), g = AC.createGain();
  o.type = "square"; o.frequency.setValueAtTime(f0, t); if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
  g.gain.setValueAtTime(vol, t); g.gain.setValueAtTime(vol, t + dur * 0.7); g.gain.linearRampToValueAtTime(0, t + dur);
- o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.02);
+ o.connect(g); g.connect(master); oscStarts++; o.start(t); o.stop(t + dur + 0.02);
 }
 function nz(rate0, rate1, dur, vol, when) {
  if (quiet()) return; const t = AC.currentTime + (when || 0), s = AC.createBufferSource(), g = AC.createGain();
@@ -374,12 +376,13 @@ fit();
 
 /* ---------- mute ---------- */
 const muteBtn = document.getElementById("btn-mute");
-function toggleMute() { muted = !muted; localStorage.setItem("cent_muted_v2", muted ? "1" : "0"); audio(); muteBtn.textContent = muted ? "SOUND OFF" : "SOUND ON"; }
+function toggleMute() { muted = !muted; audio(); muteBtn.textContent = muted ? "SOUND OFF" : "SOUND ON"; }
 muteBtn.addEventListener("click", e => { e.stopPropagation(); toggleMute(); });
 muteBtn.textContent = muted ? "SOUND OFF" : "SOUND ON";
-["pointerdown", "touchend", "keydown"].forEach(t => addEventListener(t, () => audio(), { capture: true, passive: true }));
-document.addEventListener("visibilitychange", () => { if (!document.hidden && AC && AC.state === "suspended") AC.resume().catch(() => {}); });
-window.__audioInfo = () => ({ ctx: AC ? AC.state : "none", muted, gain: master ? master.gain.value : null });
+["pointerdown", "touchstart", "touchend", "click", "keydown"].forEach(t => addEventListener(t, () => audio(), { capture: true, passive: true }));
+document.addEventListener("visibilitychange", () => { if (!document.hidden && AC && AC.state !== "running") { try { AC.resume().catch(() => {}); } catch (_) {} } });
+addEventListener("pageshow", () => { if (AC && AC.state !== "running") { try { AC.resume().catch(() => {}); } catch (_) {} } });
+window.__audioInfo = () => ({ ctx: AC ? AC.state : "none", muted, gain: master ? master.gain.value : null, oscStarts });
 window.__cent = { get state() { return { state, score, lives, wave, segs: segs ? segs.length : 0, spider: !!spider, flea: !!flea, scorp: !!scorp, demo }; }, start: () => startGame(false), demo: () => startGame(true), kill: () => { state = "dying"; stateT = 0; }, setWave: w => { wave = w; setPal(w); }, forceSpider: () => { spiderT = 1; } };
 
 /* ---------- loop @ 59.88 Hz ---------- */
