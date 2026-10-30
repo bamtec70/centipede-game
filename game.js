@@ -116,7 +116,7 @@ function seedMushrooms() {
  for (let r = 1; r < FIELD_BOTTOM; r++) for (let c = 0; c < COLS; c++) if (Math.random() < (r >= ZONE_TOP ? 0.015 : r < 2 ? 0 : 0.065)) mush[MI(c, r)] = 4;
 }
 function newCentipede() {
- segs = []; const extra = (wave - 1) % 12, len = 12 - extra, spd = 2;
+ segs = []; const extra = (wave - 1) % 12, len = 12 - extra, spd = wave % 2 ? 2 : 1; // measured: wave 1 = 2 px/frame, wave 2 = 1 px/frame
  const dir = Math.random() < 0.5 ? 1 : -1, sc = dir > 0 ? 14 : 15;
  for (let i = 0; i < len; i++) segs.push(mkSeg(sc - dir * i, 1, dir, spd, i === 0));
  for (let i = 0; i < extra; i++) { const d = i & 1 ? 1 : -1; segs.push(mkSeg(2 + Math.floor(Math.random() * 26), 1, d, spd, true)); segs[segs.length - 1].y -= 0; }
@@ -201,7 +201,7 @@ function movePlayer(dx, dy) {
  }
 }
 function shotUpdate() {
- for (let k = 0; k < 9 && shot; k++) { // ~9 px per frame, checked per pixel
+ for (let k = 0; k < 7 && shot; k++) { // 7 px per frame (measured from reference), checked per pixel
   shot.y -= 1; const sx = shot.x | 0, sy = shot.y | 0;
   if (sy < 8) { shot = null; break; }
   const c = sx >> 3, r = sy >> 3, i = MI(c, r);
@@ -256,7 +256,7 @@ function spiderUpdate() {
 function fleaUpdate() {
  if (!flea) {
   if (wave < 2) return; let n = 0; for (let r = ZONE_TOP; r <= FIELD_BOTTOM; r++) for (let c = 0; c < COLS; c++) if (mush[MI(c, r)]) n++;
-  if (n < 5 && Math.random() < 0.01) flea = { x: (Math.random() * COLS | 0) * 8, y: 8, spd: 2, hits: 0 };
+  if (n < Math.min(9, 5 + Math.floor((wave - 2) / 2)) && Math.random() < 0.01) flea = { x: (Math.random() * COLS | 0) * 8, y: 8, spd: 2, hits: 0 };
   return;
  }
  flea.y += flea.spd; SFX.fleaTone(1400 - flea.y * 4);
@@ -266,7 +266,7 @@ function fleaUpdate() {
 }
 function scorpUpdate() {
  if (!scorp) { if (wave >= 3 && Math.random() < 0.0015) { const l = Math.random() < 0.5; scorp = { x: l ? -16 : W, y: (3 + Math.random() * 14 | 0) * 8, dx: l ? 1 : -1 }; } return; }
- if (frame % 2 === 0) scorp.x += scorp.dx; if (frame % 15 === 0) SFX.scorp((frame / 15) & 1);
+ scorp.x += scorp.dx * (wave >= 5 ? 2 : 1); if (frame % 15 === 0) SFX.scorp((frame / 15) & 1);
  const c = (scorp.x + 8) >> 3, r = scorp.y >> 3; if (c >= 0 && c < COLS && mush[MI(c, r)]) poison[MI(c, r)] = 1;
  if (scorp.x < -20 || scorp.x > W + 4) scorp = null;
 }
@@ -383,7 +383,7 @@ muteBtn.textContent = muted ? "SOUND OFF" : "SOUND ON";
 document.addEventListener("visibilitychange", () => { if (!document.hidden && AC && AC.state !== "running") { try { AC.resume().catch(() => {}); } catch (_) {} } });
 addEventListener("pageshow", () => { if (AC && AC.state !== "running") { try { AC.resume().catch(() => {}); } catch (_) {} } });
 window.__audioInfo = () => ({ ctx: AC ? AC.state : "none", muted, gain: master ? master.gain.value : null, oscStarts });
-window.__cent = { get state() { return { state, score, lives, wave, segs: segs ? segs.length : 0, spider: !!spider, flea: !!flea, scorp: !!scorp, demo }; }, start: () => startGame(false), demo: () => startGame(true), kill: () => { state = "dying"; stateT = 0; }, setWave: w => { wave = w; setPal(w); }, forceSpider: () => { spiderT = 1; } };
+window.__cent = { get state() { return { state, score, lives, wave, segs: segs ? segs.length : 0, frame, segSpd: segs && segs[0] ? segs[0].spd : 0, spider: !!spider, flea: !!flea, scorp: !!scorp, demo }; }, start: () => startGame(false), demo: () => startGame(true), kill: () => { state = "dying"; stateT = 0; }, setWave: w => { wave = w; setPal(w); }, forceSpider: () => { spiderT = 1; } };
 
 /* ---------- loop @ 59.88 Hz ---------- */
 startGame(true);
